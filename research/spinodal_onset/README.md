@@ -28,9 +28,9 @@ The earlier audit found that the published fit matches only one of four two-phas
 
 - **Our implementation reproduces the published Figure 2a curves** to 2.3 K RMS (largest deviation 15 K). An independent solver agrees with Atmodeller to 10⁻⁶ K, except within 0.02 of the critical composition (0.11 K).
 - **The source table and figure disagree** for the two runs closest to the critical curve, by up to 0.07 in composition. For the two wide-gap runs they agree to 0.0006.
-- **The published fit also misses its own excess volumes**: −1.94 cm³/mol predicted against −1.00 ± 0.16 simulated at x = 0.588. The fitted pressure scale follows the critical curve instead.
+- **The published fit also misses its own excess volumes**: −1.94 cm³/mol predicted against −1.00 ± 0.17 simulated at x = 0.588. The fitted pressure scale follows the critical curve instead.
 
-The source data disagree with each other. Without the homogeneous data, a refit returns to the published asymmetry (B/A ≈ 6) but with a larger excess entropy, and gives 132 K. With them, the free energy is nearly symmetric (B/A ≈ 1.4–1.5). The delay depends on the asymmetry, the excess entropy and the interaction strength together.
+The source data disagree with each other. Without the homogeneous data, the M1 refit returns to the published asymmetry (B/A ≈ 6) but with a larger excess entropy, and gives 132 K. With them, M1 is nearly symmetric (B/A ≈ 1.4–1.5), and the delay is 65 to 92 K. Wider errors (σx = 0.15) on the near-critical compositions give B/A = 2.4 and 220 K. The delay depends on the asymmetry, the excess entropy and the interaction strength together.
 
 ### Why equilibrium data cannot settle it
 
