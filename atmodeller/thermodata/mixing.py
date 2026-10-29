@@ -8,6 +8,7 @@ These are local equilibrium calculations, not a model of decomposition kinetics.
 """
 
 from collections.abc import Callable
+import math
 from typing import Self
 
 import equinox as eqx
@@ -221,6 +222,10 @@ class SubregularSolution(eqx.Module):
         interaction_1: B (J/mol of components).
         temperature_scale: C (K); infinity disables temperature scaling.
         pressure_scale: D (bar); infinity disables pressure scaling. May be negative.
+        component_0_multiplicity: Number of fit-basis units in one native
+            component-0 formula unit; component 1 contributes one. With k != 1,
+            the equation above is evaluated at z=x/[k+(1-k)x] and multiplied by
+            k+(1-k)x, preserving the extensive free energy. Defaults to one.
 
     Inputs broadcast elementwise. Invalid T <= 0, P < 0, nonfinite T/P or x
     outside [0,1] produce NaN. No extrapolation validity is implied by a finite
@@ -231,6 +236,8 @@ class SubregularSolution(eqx.Module):
     interaction_1: FloatArray
     temperature_scale: FloatArray
     pressure_scale: FloatArray
+    component_0_multiplicity: float = eqx.field(static=True)
+    """Mixing-basis units per native component-0 formula unit (component 1: one)."""
 
     def __init__(
         self,
@@ -239,11 +246,15 @@ class SubregularSolution(eqx.Module):
         *,
         temperature_scale: ArrayLike = jnp.inf,
         pressure_scale: ArrayLike = jnp.inf,
+        component_0_multiplicity: float = 1.0,
     ):
+        if not math.isfinite(component_0_multiplicity) or component_0_multiplicity <= 0:
+            raise ValueError("Component multiplicity must be finite and positive.")
         self.interaction_0 = as_j64(interaction_0)
         self.interaction_1 = as_j64(interaction_1)
         self.temperature_scale = as_j64(temperature_scale)
         self.pressure_scale = as_j64(pressure_scale)
+        self.component_0_multiplicity = float(component_0_multiplicity)
 
     @classmethod
     def regular_solution(cls, interaction: ArrayLike) -> Self:
@@ -261,6 +272,38 @@ class SubregularSolution(eqx.Module):
         """
         return cls(-6.26e3, 7.86e5, temperature_scale=4.67e3, pressure_scale=-3.5e5)
 
+    @classmethod
+    def hydrogen_silicate_gilmore26(cls) -> Self:
+        """Final Gilmore & Stixrude (2026) fit, on native (MgSiO3, H2) components.
+
+        DOI: 10.1038/s41586-025-09970-4, equations 1 and 8. The paper uses
+        z = n(H2)/(n(H2) + n(MgO) + n(SiO2)), so one MgSiO3 formula unit
+        contributes TWO mixing-basis units. This conversion applies to the
+        extensive Gibbs energy and both chemical potentials, not only to z.
+        All public compositions, phase amounts and energies remain on the
+        native formula-unit basis. This does not calibrate pure standard states
+        for exchange with a separate reacting gas reservoir.
+        """
+        return cls(
+            75e3,
+            424e3,
+            temperature_scale=4400.0,
+            pressure_scale=-3.5e5,
+            component_0_multiplicity=2.0,
+        )
+
+    def mixing_composition(self, x: ArrayLike) -> FloatArray:
+        """Convert native component-1 mole fraction to the free-energy fit basis."""
+        x = as_j64(x)
+        k = self.component_0_multiplicity
+        return jnp.where((x >= 0) & (x <= 1), x / (k + (1 - k) * x), jnp.nan)
+
+    def native_composition(self, x: ArrayLike) -> FloatArray:
+        """Convert component-1 mole fraction in the fit basis to the native basis."""
+        x = as_j64(x)
+        k = self.component_0_multiplicity
+        return jnp.where((x >= 0) & (x <= 1), k * x / (1 + (k - 1) * x), jnp.nan)
+
     def _parameters(
         self, temperature: ArrayLike, pressure: ArrayLike
     ) -> tuple[FloatArray, FloatArray]:
@@ -276,14 +319,24 @@ class SubregularSolution(eqx.Module):
         """Homogeneous molar Gibbs energy of mixing (J/mol); finite at x=0 and 1."""
         a, b = self._parameters(temperature, pressure)
         x = as_j64(x)
-        f = xlogy(x, x) + xlogy(1 - x, 1 - x) + x * (1 - x) * (a * (1 - x) + b * x)
-        return jnp.where((x >= 0) & (x <= 1), GAS_CONSTANT * temperature * f, jnp.nan)
+        z = self.mixing_composition(x)
+        scale = self.component_0_multiplicity + (1 - self.component_0_multiplicity) * x
+        f = xlogy(z, z) + xlogy(1 - z, 1 - z) + z * (1 - z) * (a * (1 - z) + b * z)
+        return jnp.where((x >= 0) & (x <= 1), scale * GAS_CONSTANT * temperature * f, jnp.nan)
 
     def curvature(self, temperature: ArrayLike, pressure: ArrayLike, x: ArrayLike) -> FloatArray:
         """Homogeneous d²g_mix/dx² (J/mol); negative means spinodal instability."""
         a, b = self._parameters(temperature, pressure)
         x = as_j64(x)
-        value = GAS_CONSTANT * temperature * _curvature(a, b, x)
+        k = self.component_0_multiplicity
+        scale = k + (1 - k) * x
+        value = (
+            GAS_CONSTANT
+            * temperature
+            * k**2
+            / scale**3
+            * _curvature(a, b, self.mixing_composition(x))
+        )
         return jnp.where((x >= 0) & (x <= 1), value, jnp.nan)
 
     def spinodal(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
@@ -294,7 +347,33 @@ class SubregularSolution(eqx.Module):
         """
         a, b = self._parameters(temperature, pressure)
         lower, upper, gap = _spinodal(a, b)
-        return jnp.where(gap[..., None], jnp.stack((lower, upper), axis=-1), jnp.nan)
+        limits = self.native_composition(jnp.stack((lower, upper), axis=-1))
+        return jnp.where(gap[..., None], limits, jnp.nan)
+
+    def spinodal_temperature(self, pressure: ArrayLike, x: ArrayLike) -> FloatArray:
+        """Positive temperature at which the homogeneous curvature vanishes.
+
+        Analytical inversion of this model's T-linear Gibbs energy. NaN means
+        no finite positive root, invalid P/x, or a composition endpoint. This
+        locates a local-stability boundary; it predicts neither a nucleation
+        temperature nor a decomposition rate. A positive temperature derivative
+        of curvature is additionally needed to interpret it as a cooling onset.
+        """
+        p, z = as_j64(pressure), self.mixing_composition(x)
+        a, b = self.interaction_0, self.interaction_1
+        second = 2 * b - 4 * a + 6 * (a - b) * z
+        denominator = GAS_CONSTANT / (z * (1 - z)) - second / self.temperature_scale
+        temperature = -second * (1 + p / self.pressure_scale) / denominator
+        valid = (
+            jnp.isfinite(p)
+            & (p >= 0)
+            & (z > 0)
+            & (z < 1)
+            & jnp.isfinite(temperature)
+            & (temperature > 0)
+            & (denominator != 0)
+        )
+        return jnp.where(valid, temperature, jnp.nan)
 
     def log_activity_coefficients(
         self, temperature: ArrayLike, pressure: ArrayLike, x: ArrayLike
@@ -302,7 +381,17 @@ class SubregularSolution(eqx.Module):
         """Homogeneous ln(gamma_0, gamma_1), derived from the same Gibbs energy."""
         a, b = self._parameters(temperature, pressure)
         x = as_j64(x)
-        coefficients = _excess_potentials(a, b, x)
+        z = self.mixing_composition(x)
+        coefficients = _excess_potentials(a, b, z)
+        k = self.component_0_multiplicity
+        if k != 1:
+            # Derivatives of G = (k*n0+n1)*g(z), relative to native ideal
+            # activities. Transforming only the binodal composition is wrong.
+            log_scale = jnp.log(k + (1 - k) * x)
+            mu0 = k * coefficients[..., 0] + (k - 1) * jnp.log1p(-x)
+            mu0 += k * (jnp.log(k) - log_scale)
+            mu1 = coefficients[..., 1] - log_scale
+            coefficients = jnp.stack((mu0, mu1), axis=-1)
         return jnp.where(((x >= 0) & (x <= 1))[..., None], coefficients, jnp.nan)
 
     def coexistence(self, temperature: ArrayLike, pressure: ArrayLike) -> BinaryCoexistence:
@@ -319,6 +408,8 @@ class SubregularSolution(eqx.Module):
         sl, sr, gap = _spinodal(a, b)
         left = _potentials_from_logit(a, b, q[..., 0])
         right = _potentials_from_logit(a, b, q[..., 1])
+        multiplicity = jnp.array([self.component_0_multiplicity, 1.0])
+        left, right = left * multiplicity, right * multiplicity
         residual = jnp.where(gap, jnp.max(jnp.abs(left - right), axis=-1), 0.0)
         brackets = (jax.nn.sigmoid(q[..., 0]) < sl) & (jax.nn.sigmoid(q[..., 1]) > sr)
         resolved = (residual < 1e-8) & brackets & jnp.all(jnp.abs(q) < 699.0, axis=-1)
@@ -330,7 +421,23 @@ class SubregularSolution(eqx.Module):
         )
         valid = jnp.isfinite(a) & jnp.isfinite(b) & edges_resolved & (~gap | resolved)
         activity = jnp.where((gap & valid)[..., None], (left + right) / 2, jnp.nan)
-        return BinaryCoexistence(q, gap, valid, activity, residual)
+        native_q = jnp.where(gap[..., None], q + jnp.log(self.component_0_multiplicity), 0.0)
+        return BinaryCoexistence(native_q, gap, valid, activity, residual)
+
+    def homogeneous_log_activities(
+        self, temperature: ArrayLike, pressure: ArrayLike, log_mole_fraction: ArrayLike
+    ) -> FloatArray:
+        """Homogeneous activities from native log fractions, preserving trace limits.
+
+        Used by the reaction engine: rounding exp(log_x1) to one must not erase
+        a finite log_x0. Both ideal and nonideal terms use the same component basis.
+        """
+        log_x = as_j64(log_mole_fraction)
+        k = self.component_0_multiplicity
+        log_scale = jnp.logaddexp(jnp.log(k) + log_x[..., 0], log_x[..., 1])
+        log_z = log_x + jnp.array([jnp.log(k), 0.0]) - log_scale[..., None]
+        a, b = self._parameters(temperature, pressure)
+        return (log_z + _excess_potentials(a, b, jnp.exp(log_z[..., 1]))) * jnp.array([k, 1.0])
 
     def log_activities(
         self,
@@ -348,7 +455,8 @@ class SubregularSolution(eqx.Module):
         """
         x = as_j64(x)
         ideal = jnp.stack((jnp.log1p(-x), jnp.log(x)), axis=-1)
-        homogeneous = ideal + self.log_activity_coefficients(temperature, pressure, x)
+        homogeneous = self.homogeneous_log_activities(temperature, pressure, ideal)
+        homogeneous = jnp.where(((x >= 0) & (x <= 1))[..., None], homogeneous, jnp.nan)
         if not equilibrate:
             return homogeneous
         coexistence = self.coexistence(temperature, pressure)
@@ -356,6 +464,17 @@ class SubregularSolution(eqx.Module):
             coexistence.contains(x)[..., None], coexistence.log_activity, homogeneous
         )
         return jnp.where(coexistence.valid[..., None], values, jnp.nan)
+
+    def equilibrium_gibbs_energy(
+        self, temperature: ArrayLike, pressure: ArrayLike, x: ArrayLike
+    ) -> FloatArray:
+        """Convex-envelope mixing energy (J/native mol), including pure endpoints."""
+        x = as_j64(x)
+        c = self.coexistence(temperature, pressure)
+        activity = jnp.where((c.has_gap & c.valid)[..., None], c.log_activity, 0.0)
+        tangent = GAS_CONSTANT * temperature * ((1 - x) * activity[..., 0] + x * activity[..., 1])
+        result = jnp.where(c.contains(x), tangent, self.gibbs_energy(temperature, pressure, x))
+        return jnp.where(c.valid, result, jnp.nan)
 
     def diagnostics(
         self, temperature: ArrayLike, pressure: ArrayLike, x: ArrayLike
@@ -370,11 +489,13 @@ class SubregularSolution(eqx.Module):
         x = as_j64(x)
         a, b = self._parameters(temperature, pressure)
         sl, sr, gap = _spinodal(a, b)
+        sl, sr = self.native_composition(sl), self.native_composition(sr)
         coexistence = self.coexistence(temperature, pressure)
         curvature = self.curvature(temperature, pressure, x)
         separated = coexistence.contains(x)
         return {
             "bulk_component_1_mole_fraction": x,
+            "mixing_basis_component_1_mole_fraction": self.mixing_composition(x),
             "homogeneous_curvature_J_per_mol": curvature,
             "spinodally_unstable": curvature < 0,
             "metastable": separated & (curvature >= 0),
