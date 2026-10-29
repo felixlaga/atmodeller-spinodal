@@ -1,0 +1,95 @@
+\chapter{Conclusion}\label{ch:conclusion}
+
+The study of sub-Neptune exoplanets occupies a critical intersection between geophysics and
+atmospheric science. This work has demonstrated that the release of hydrogen from a miscible
+sub-Neptune interior cannot be timed from equilibrium miscibility data alone. Between the
+equilibrium onset of exsolution and the loss of local stability lies a metastable window,
+and its width is set by a part of the free energy that the existing simulations do not
+sample. By utilizing the \Atm{} framework to compute binodals, spinodals and their
+uncertainties for H$_2$--MgSiO$_3$ parcels across local hydrogen mass fractions of 0.1--20\%
+and pressures of 2--10\,GPa, we have constrained the thermodynamic limits on hydrogen
+exsolution during the cooling of the magma ocean. This chapter summarizes the primary
+insights derived from this modeling and discusses their implications for interpreting
+observations.
+
+\section{Summary of Findings}
+
+Our modeling yields four primary conclusions regarding the exsolution of hydrogen from
+sub-Neptune interiors.
+
+\subsection{A Composition-Consistent Mixing Model}
+
+We implemented the final 2026 hydrogen--silicate mixing model in \Atm{}. The published model
+uses oxide units, whereas \Atm{} uses MgSiO$_3$ formula units, and the conversion must act on
+the extensive free energy, not only on the compositions. With this conversion our
+implementation reproduces the published phase diagram with an RMS residual of \digRms{}\,K.
+Without it,
+the metastable interval of the baseline parcel is about nine times too short.
+
+\subsection{The Metastable Window}
+
+With the published fit, a parcel with 3\,wt\% local hydrogen at 2\,GPa enters the miscibility
+gap at \pubTbTwo{}\,K and becomes unstable at \pubTspTwo{}\,K. Over this \pubIntTwo{}\,K
+interval, delayed exsolution could withhold up to \pubFhTwo{}\% of its hydrogen from
+separation. In the published fit, parcels with less than \pubThreshold{}\,wt\% hydrogen never
+become unstable, so their separation always requires nucleation; in the refits this threshold
+lies lower.
+
+\subsection{The Source Data Do Not Fix the Window}
+
+The published fit departs from its own source simulations in two places: the compositions of
+the two runs closest to the critical curve, where the source table and figure also disagree,
+and the excess volume, which is about half the value that the fitted pressure scale implies.
+Refitting the same model form to all source data shortens the interval to
+\IntMOneTable{}\,K (68\% range \IntMOneTableLo{}--\IntMOneTableHi{}\,K). Across four smooth
+model classes and six data treatments, the median interval ranges from \IntRangeLo{} to
+\IntRangeHi{}\,K, and the most flexible class still allows the published value. The window
+depends on the asymmetry, the excess entropy and the strength of the interaction together, and
+the coexisting compositions and the homogeneous simulations pull these in different
+directions.
+
+\subsection{The Spinodal Is Not Identifiable from Coexistence Data}
+
+A free-energy perturbation that leaves every equilibrium observable unchanged still moves the
+spinodal by tens to hundreds of kelvin. Any spinodal inferred from coexistence data is
+therefore a property of the assumed functional form. The curvature inside the miscibility gap
+has to be measured, not inferred.
+
+\section{Implications for Observations}
+
+These findings introduce a new uncertainty into the interpretation of young sub-Neptunes.
+Evolution models with hydrogen--silicate miscibility time the release of hydrogen with the
+equilibrium binodal. If nucleation is suppressed, the release can lag by up to several hundred
+kelvin of cooling and then occur abruptly.
+
+Therefore, observational constraints from instruments such as JWST should be interpreted
+within a coupled framework:
+\begin{enumerate}
+\item \textbf{Radius evolution:} Inflation of the envelope by exsolved hydrogen may set in later
+than equilibrium models predict. The demographic tests proposed for young sub-Neptunes
+\cite{rogers2026} should therefore include the metastable window as a systematic
+uncertainty.
+\item \textbf{Atmospheric composition:} A delayed and abrupt supply of hydrogen would
+temporarily lower the mean molecular weight and shift the carbon speciation toward CH$_4$, in
+line with the hydrogen-budget dependence found in our thesis \cite{laga2025}. Such a signal
+requires efficient transport from the interior and remains untested.
+\item \textbf{Interpretive caution:} Because the window is not identifiable from present data,
+atmospheric or radius signatures should not yet be interpreted as evidence for or against
+spinodal decomposition.
+\end{enumerate}
+
+\section{Future Outlook}
+
+While this work establishes a thermodynamic bound on delayed hydrogen exsolution,
+the sub-Neptune environment remains complex. The current models assume a binary
+H$_2$--MgSiO$_3$ mixture with temperature-independent excess enthalpy and entropy. Future
+simulations should measure the curvature of the homogeneous free energy inside the miscibility
+gap directly, through the concentration structure factor, and test the temperature dependence
+of the excess properties below $T_C$. The interfacial tension and mobility then fix nucleation
+rates, which an evolution model can use instead of the two limiting cases studied here.
+Lastly, as the magma ocean solidifies, the exsolution of incompatible volatiles could lead to
+late-stage atmospheric inflation. This, too, should be incorporated as a time-dependent
+evolution of the cooling and crystallizing magma ocean, coupled to the atmospheric chemistry
+of \Atm{}. Despite these open questions, this work highlights that accurately predicting when
+a sub-Neptune releases its hydrogen requires a fundamental understanding of the metastable
+states of its interior.

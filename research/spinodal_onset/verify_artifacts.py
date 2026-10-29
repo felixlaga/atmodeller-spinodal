@@ -32,6 +32,9 @@ def snapshot():
         ".txt",
         ".pdf",
         ".html",
+        ".tex",
+        ".bib",
+        ".sty",
     }
     return {
         str(p.relative_to(HERE)): digest(p)
@@ -40,7 +43,47 @@ def snapshot():
         and p.suffix in extensions
         and p != MANIFEST
         and "__pycache__" not in p.parts
+        and not (p.parent.name == "paper" and p.suffix in {".aux", ".log", ".bbl", ".blg", ".out"})
     }
+
+
+def recalibration_checks():
+    """Post-audit analyses: digitization, independent solver, recalibration, design, draft."""
+    from research.spinodal_onset.calibration import Problem
+    from research.spinodal_onset.mixing_models import published_gilmore26, weight_to_z
+
+    key = json.loads((OUT / "key_results.json").read_text())["at_2GPa_3wt"]
+    m = published_gilmore26()
+    z = weight_to_z(0.03)
+    assert abs(m.spinodal_temperature(z, 2.0) - key["spinodal_K"]) < 1e-6
+    assert abs(m.binodal_temperature(z, 2.0) - key["binodal_K"]) < 1e-4
+    assert (
+        abs(
+            m.rich_hydrogen_fraction(z, key["spinodal_K"], 2.0)
+            - key["H_rich_fraction_at_spinodal"]
+        )
+        < 1e-9
+    )
+    digitized = json.loads((OUT / "source_figure_digitized.json").read_text())
+    assert digitized["wide_gap_marker_max_abs_difference_from_table"] < 0.002
+    assert max(c["rms_residual_K"] for c in digitized["curves"].values()) < 5
+    calibration = json.loads((OUT / "calibration_summary.json").read_text())
+    runs = {(r["model"], r["version"]) for r in calibration["runs"]}
+    assert len(runs) == 9, runs
+    for run in calibration["runs"]:
+        assert run["quantiles"]["interval_K"]["n"] >= 2000
+        rhat = [v["rhat"] for v in run["diagnostics"].values() if np.isfinite(v["rhat"])]
+        assert max(rhat) < 1.1, (run["model"], run["version"], max(rhat))
+    published = Problem("M1", "table").chi2_parts(np.array([75, 424, 1 / 4400, -1 / 35]))
+    for k, v in published.items():
+        assert abs(v - calibration["published_fit"]["chi2"][k]) < 1e-6, k
+    samples = pd.read_csv(OUT / "calibration_samples.csv")
+    assert len(samples) == 9 * 2400
+    for name in ("design_homogeneous.csv", "design_curvature.csv", "design_summary.json"):
+        assert (OUT / name).is_file(), name
+    numbers = (HERE / "paper/numbers.tex").read_text()
+    assert "\\newcommand{\\pubIntTwo}{414}" in numbers
+    assert (HERE / "paper/main.pdf").is_file()
 
 
 def main():
@@ -54,8 +97,9 @@ def main():
     provenance = json.loads((OUT / "provenance.json").read_text())
     for name, expected in provenance["sources"].items():
         assert digest(ROOT / name) == expected, f"Analysis source changed: {name}"
-    for source in json.loads((HERE / "sources/manifest.json").read_text()):
-        assert digest(HERE / "sources" / source["file"]) == source["sha256"]
+    for manifest in ("sources/manifest.json", "sources/figure_manifest.json"):
+        for source in json.loads((HERE / manifest).read_text()):
+            assert digest(HERE / "sources" / source["file"]) == source["sha256"]
     identity = json.loads((OUT / "identifiability_checks.json").read_text())
     assert digest(HERE / "identifiability.py") == identity["script_sha256"]
     assert identity["homogeneous_EDTable2_states_unchanged"]
@@ -83,7 +127,7 @@ def main():
     assert key["maximum_pressure_dependence_of_H_fraction_at_spinodal"] < 1e-4
     np.testing.assert_allclose(key["at_2GPa_3wt"]["interval_K"], 413.7381621485756, atol=1e-6)
     assert "288 passed, 3 deselected" in (HERE / "validation/tests.txt").read_text()
-    assert (HERE / "output/pdf/delayed_hydrogen_exsolution.pdf").is_file()
+    recalibration_checks()
     explorer = (HERE / "explorer.html").read_text()
     embedded = json.loads(explorer.split("const data=", 1)[1].split(";const $", 1)[0])
     paths = pd.read_csv(OUT / "cooling_paths.csv")

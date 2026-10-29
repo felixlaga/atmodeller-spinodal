@@ -29,7 +29,8 @@ Phase-resolved outputs expose conserved component inventories and mass.
 
 Start with the [spinodal guide](docs/spinodal.rst),
 [runnable example](examples/spinodal_equilibrium.py),
-[focused delayed-exsolution study](research/spinodal_onset/README.md),
+[focused delayed-exsolution study](research/spinodal_onset/README.md) and its
+[research draft](research/spinodal_onset/paper/main.pdf),
 [earlier demixing and atmospheric-feed study](research/spinodal_study/README.md), and
 [archived hydrogen-storage investigation](research/README.rst).
 The archived sensitivity results predate this extension and retain their original provenance.
