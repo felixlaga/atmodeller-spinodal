@@ -1,0 +1,8 @@
+{
+  "script_sha256": "8b85f3bb504be85e80073c29ff62c73cc20b84a01e4b437dd48ce0c9bdd879ee",
+  "minimum_sampled_support_margin_J_per_fit_mol": -3.637978807091713e-12,
+  "maximum_endpoint_energy_or_curvature_change": 0.0,
+  "homogeneous_EDTable2_states_unchanged": true,
+  "maximum_relative_curvature_error_against_autodiff": 5.654266905675513e-16,
+  "scope": "Constructed thermodynamic counterexample; amplitudes are not calibrated material uncertainties."
+}

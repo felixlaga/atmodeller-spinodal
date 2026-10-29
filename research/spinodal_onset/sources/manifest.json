@@ -1,0 +1,18 @@
+[
+  {
+    "file": "EDTable1.xlsx",
+    "url": "https://zenodo.org/records/17716049/files/EDTable1.xlsx",
+    "sha256": "fcdbc7f106668997396f9c97ddc511dc99dd16e2486b8c1006739cc24886395a",
+    "license": "CC-BY-4.0",
+    "attribution": "Gilmore and Stixrude (2026), DOI 10.1038/s41586-025-09970-4; data DOI 10.5281/zenodo.17716049",
+    "retrieved_utc": "2026-10-29"
+  },
+  {
+    "file": "EDTable2.xlsx",
+    "url": "https://zenodo.org/records/17716049/files/EDTable2.xlsx",
+    "sha256": "b0f9756c74ab07a2bb05d413b21c23efde12cb1fbff43b58edf01dede1ad07e5",
+    "license": "CC-BY-4.0",
+    "attribution": "Gilmore and Stixrude (2026), DOI 10.1038/s41586-025-09970-4; data DOI 10.5281/zenodo.17716049",
+    "retrieved_utc": "2026-10-29"
+  }
+]
